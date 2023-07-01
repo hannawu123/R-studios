@@ -1,0 +1,360 @@
+---
+title: "Exam 2"
+author: "Hanna Wu"
+date: "2023-04-26"
+output: pdf_document
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r}
+library(survival)
+library(survminer)
+source("http://ajmolstad.github.io/docs/fun.R")
+```
+
+**Question 1:**
+
+part a.
+
+$H_0:\beta_1 = 0$ no linear relationship between t cell
+
+$H_A: \beta_1 \not= 0$
+
+The test statistic uses a chi square distribution with 1 df. With a p
+value of 0.00049, we have sufficient evidence to reject the null
+hypothesis at alpha = 0.05. Therefore, there is evidence to support that
+the proportion of t cell, Ct, is significant.
+
+part b.
+
+exp(0.000226726 +- 1.96(0.0756)) = (0.11601, 0.156027)
+
+The 95% confidence interval for the scale parameter is between 0.11601
+and 0.156027.
+
+part c.
+
+![](images/Screen%20Shot%202023-04-29%20at%2011.22.43%20AM.png){width="546"}
+
+part d.
+
+![](images/Screen%20Shot%202023-04-29%20at%2011.23.02%20AM.png){width="589"}
+
+part e.
+
+![](images/Screen%20Shot%202023-04-27%20at%205.05.17%20PM.png)
+
+part f.
+
+![](images/Screen%20Shot%202023-04-27%20at%205.05.21%20PM.png)
+
+part g.
+
+Checking for patterns or deviation from the randomness of a residual vs
+predicted plot is a way to check the assumption of logistically
+distributed errors. If the residuals from the fitted model are uniformly
+distributed around zero and show no apparent pattern, this suggests that
+the assumption of logistically distributed errors is not violated.
+However, the presence of patterns in the residuals plot may indicate a
+violation of this assumption, suggesting that the variance of the
+residuals is not constant across the predicted values.
+
+**Question 2:**
+
+```{r}
+heart <- read.csv("https://ajmolstad.github.io/docs/heartData.csv", header=T)
+heart$status <- heart$DEATH_EVENT
+mod.q2 <- coxph(Surv(time, status) ~ anaemia + serum_creatinine + platelets +
+ejection_fraction + high_blood_pressure, data = heart)
+summary(mod.q2)
+```
+
+part a. The predictors in the model are not all equal to zero, therefore
+there is no intercept term in the model when looking at the summary
+output from mod.q2. Furthermore, the baseline hazard model does not
+equal to zero due to the fact that all patients in the dataset have non
+zero values for at least one of the predictors.
+
+part b.
+
+```{r}
+null.mod <- coxph(Surv(time, status) ~ 1, data = heart)
+anova(mod.q2, null.mod)
+```
+
+We are testing the full model to the null model:
+
+$H_0: \beta1=\beta2=\beta3= \beta4= \beta5 = 0$
+
+$H_A:$ At least one of the betas is nonzero
+
+The test statistic follows a chi square distribution under the null
+hypothesis with 5 df.
+
+P-value: 8.28x10\^-10 \< alpha 0.05
+
+The likelihood ratio test rejects the null hypothesis with a p-value
+less than 8.28x10\^-10. So, we can conclude that at least one
+coefficient is nonzero.
+
+part c.
+
+```{r}
+
+newdata <- data.frame(serum_creatinine = 1.1, ejection_fraction=38.00,platelets= 303500, anaemia= c(0,0,1,1),  high_blood_pressure = c(0,1))
+newdata
+
+pred <- survfit(mod.q2, newdata=newdata)
+plot(pred, conf.int=FALSE, col=pal(4), mark.time=FALSE, lwd=2, bty='n', las=1,
+xlab='Time')
+toplegend(legend=paste('anaemia and high bp:',c(0,0,1,1),c(0,1)),lwd=2, col=pal(4), cex=0.7)
+
+
+```
+
+The likelihood that a patient would survive the longest is lowest if
+they have both high blood pressure and hypertension. In comparison to
+the other 3 combinations, the likelihood that a patient does not have
+high blood pressure and hypertension has the best chance of surviving
+over time. A person with high anemia who does not have hypertension has
+the second-highest survival rate. A patient with high blood pressure but
+no anemia ranks third and is rather close to second place.
+
+part d.
+
+```{r}
+e <- mod.q2$y[,2]-residuals(mod.q2)
+efit <- survfit(Surv(e, mod.q2$y[,2])~1)
+lim <- c(0, max(e))
+plot(efit, fun='cumhaz', mark.time=FALSE, bty='n', conf.int=FALSE, lwd=2, las=1,
+     xlab='Residual', ylab='Cumulative hazard', xlim=lim, ylim=lim)
+ciband(efit, fun=function(x) -log(x))
+lines(lim, lim, col='red', lwd=2)
+```
+
+By looking at the graph depicted above, it shows that the cumulative
+hazard function follows the exponential and is inside the 95% CI band.
+This provides evidence that our estimated cumulative hazard function is
+correct, which implies that the Cox PH model is appropriate for these
+data.
+
+part e.
+
+```{r}
+source("https://ajmolstad.github.io/docs/fun.R")
+cumHaz <- function(sfit, t) {
+K <- length(sfit$strata)
+s <- c(0, cumsum(sfit$strata))
+H <- matrix(NA, nrow=length(t), ncol=K)
+for (i in 1:K) {
+ind1 <- (s[i] + 1):s[i + 1]
+tmp1 <- c(0,sfit$time[ind1])
+tmp2 <- c(0,sfit$cumhaz[ind1])
+H[,i] <- approxfun(tmp1, tmp2, method="constant")(t)
+}
+H
+}
+mod.q2.strat <- coxph(Surv(time, status) ~ anaemia + serum_creatinine +
+platelets + ejection_fraction + strata(high_blood_pressure), data = heart)
+sfit <- survfit(mod.q2.strat)
+Time <- seq(20, 250, by=10)
+plot(Time, apply(log(cumHaz(sfit, Time)), 1, diff), type="s", bty="n", las=1,
+lwd=2, xlab="Time", ylab=expression(log*H[0][0](t)-log*H[0][1](t)))
+
+S.mle <- exp(heart$high_blood_pressure)
+S.mle
+
+```
+
+In the plot shown above, the survival functions of the groups with and
+without hypertension are compared to see if there is a noticeable
+difference in survival between them. The plot fluctuates, reaching a
+maximum of 0.9 at time = 70 and falling below 0.3 at time = 250. As a
+result, there is not a significant difference between the proportional
+hazard for high blood pressure = 0 versus high blood pressure = 1 that
+remains constant across time. It does provide evidence that the Cox PH
+assumption is violated. $log(H_{00}(t)) - log(H_{01}(t))$ is equal to
+the estimated coefficient of the high blood pressure = 0 versus high
+blood pressure = 1 in the Cox proportional hazards model. Therefore, the
+MLE is 2.718282.
+
+Part f.
+
+```{r}
+r <- residuals(mod.q2)
+plot(heart$serum_creatinine, residuals(mod.q2), pch=19, las=1, bty='n', col=pal(2)[mod.q2$y[,2]+1],
+     xlab='Serum Creatinine', ylab='Martingale residual')
+toplegend(legend=c("Censored", "Heart failure"), pch=19, col=pal(2))
+```
+
+part g.
+
+```{r}
+heart[c(49, 218),]
+```
+
+Individuals 49 and 218 whose survival times have martingale residuals
+that are less than -0.4 are an indication of outliers. This indicates
+that the model over predicted these individuals' risk of heart failure.
+Confounding variables that are unknown or even unmeasured may have had a
+significant influence on the covariates and outcome, perhaps leading to
+an over prediction of these two.
+
+**Question 3:**
+
+```{r}
+Q3dat <- readRDS(url("https://ajmolstad.github.io/docs/4712_Q3.RDS"))
+```
+
+Part a.
+
+```{r}
+#Using r code to check: 
+
+#i. Efron approximation
+efron.fit <- coxph(Surv(time,status) ~ x, ties="efron", data = Q3dat)
+summary(efron.fit)
+
+#ii. Breslow approximation
+breslow.fit <- coxph(Surv(time,status) ~ x, ties="breslow", data = Q3dat)
+summary(breslow.fit)
+
+```
+
+part b.
+
+```{r}
+coef(breslow.fit)
+coef(efron.fit)
+```
+
+The MLE of Beta under the two approximations to the partial
+log-likelihood are not equivalent to one another.
+
+part c.
+
+```{r}
+breslow.fit <- coxph(Surv(time,status) ~ x, ties="breslow", data = Q3dat)
+breslow.fit
+```
+
+Under Breslaw approx. to the partial likelihood, LRT:
+
+$H_0: \beta= 1$
+
+$H_A: \beta \not= 1$
+
+The test statistic follows a chi square distribution with 1 df. With a p
+value of 0.06535, we fail to reject the null hypothesis. Therefore,
+covariate x has no effect on the hazard rate and that there may be some
+association between covariate x and hazard rate.
+
+**Question 4:**
+
+```{r}
+Q4dat <- readRDS(url("https://ajmolstad.github.io/docs/4712_Q4.RDS"))
+q4.formula <- Surv(time, status) ~ X1 + X2 + X3 + X4 + X5
+mod4.wei <- survreg(q4.formula, dist="weibull", data = Q4dat)
+mod4.exp <- survreg(q4.formula, dist="exponential", data = Q4dat)
+mod4.ln <- survreg(q4.formula, dist="lognormal", data = Q4dat)
+```
+
+Part a.
+
+```{r}
+anova(mod4.exp, mod4.wei)
+```
+
+Yes, both models can be compared using the likelihood ratio test.
+
+$H_0: \alpha=1$ scale parameter = 1 ----- exponential fits sufficiently
+well
+
+$H_A: \alpha \not=1$ --- Weibull fits better
+
+With a p value of 1.1057x10\^-89, we have sufficient evidence to reject
+the null hypothesis at alpha = 0.05. We can conclude that the scale
+parameter does not equal to 1, and the Weibull distribution model fits
+better than the exponential distribution model.
+
+part b.
+
+```{r}
+anova(mod4.ln, mod4.wei)
+```
+
+The likelihood ratio test cannot be used to compare these two models
+since they are equivalent and share no unique characteristics, in other
+terms "not nested". A likelihood ratio test is used to test whether a
+more complicated model provides a better fit to the data than a simpler
+model.
+
+part c. This is a discordant pair because we predict that subject k is
+higher risk, with a higher linear predictor, and will survive longer
+than subject i.
+
+part d. lowest AIC of the 3 models: log lowest BIC of the 3 models: log
+Highest concordance of the 3 models: log Log is the best fit for the
+model with the lowest AIC and BIC value. Also, it has the highest
+concordance value.
+
+```{r}
+
+tab <- matrix(c(AIC(mod4.wei), BIC(mod4.wei), 0.6306,
+             AIC(mod4.exp), BIC(mod4.exp), 0.6263,
+             AIC(mod4.ln), BIC(mod4.ln),0.6319), ncol=3, byrow=TRUE)
+colnames(tab) <- c('AIC','BIC','Concordance')
+rownames(tab) <- c('Weibull','Expoential','Log')
+tab <- as.table(tab)
+tab
+
+concordance(mod4.wei)
+concordance(mod4.exp)
+concordance(mod4.ln)
+```
+
+part e.
+
+Model 1 avg concordance: 0.61609 Model 2 avg concordance: 0.38955 model
+3 avg concordance: 0.38637 Model 1 would be a better fit since it has
+the highest average concordance between the other two models. The notes
+says a value of 1 indicates perfect agreement between the model and
+observation, while a value of 0.5 indicates that the model is performing
+no better than random guesses. Therefore, for the most part the models
+are not any better than guessing.
+
+```{r}
+set.seed(5)
+conc.mod1 <- rep(0, 5)
+conc.mod2 <- rep(0, 5)
+conc.mod3 <- rep(0, 5)
+t0 <- rep(c(1:5), length=dim(rotterdam)[1])
+fold.indices <- sample(t0)
+for(k in 1:5){
+test.inds <- which(fold.indices==k)
+
+
+
+mod1.k <- survreg(Surv(time, status) ~ X1 + X2 + X3 + X4 + X5, dist="weibull",  data = Q4dat[-test.inds,])
+mod2.k <- survreg(Surv(time, status) ~ X1 + X2 + X3 + X4 + X5, dist="exponential",  data = Q4dat[-test.inds,])
+mod3.k <- survreg(Surv(time, status) ~ X1 + X2 + X3 + X4 + X5, dist="lognormal",  data = Q4dat[-test.inds,])
+
+
+pred1.k <- predict(mod1.k, Q4dat[test.inds,])
+pred2.k <- predict(mod2.k, Q4dat[test.inds,])
+pred3.k <- predict(mod3.k, Q4dat[test.inds,])
+
+
+
+pred1.k.rev <- -pred1.k
+S.k <- Surv(Q4dat[test.inds,]$time, Q4dat[test.inds,]$status)
+
+conc.mod1[k] <- survConcordance(S.k ~ pred1.k.rev)$concordance
+conc.mod2[k] <- survConcordance(S.k ~ pred2.k)$concordance
+conc.mod3[k] <- survConcordance(S.k ~ pred3.k)$concordance
+}
+c(mean(conc.mod1), mean(conc.mod2), mean(conc.mod3))
+
+```

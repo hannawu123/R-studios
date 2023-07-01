@@ -1,0 +1,301 @@
+---
+title: "Homework 5"
+author: "Hanna Wu"
+date: "2023-04-15"
+output: pdf_document
+---
+
+Question 1
+
+```{r}
+library(survival)
+library(survminer)
+source("http://ajmolstad.github.io/docs/fun.R")
+head(rotterdam)
+status <- pmax(rotterdam$recur, rotterdam$death)
+rfstime <- with(rotterdam, ifelse(recur==1, rtime, dtime))
+S <- Surv(rfstime, status)
+```
+
+a\.
+
+As time increases, the higher the grade the lower the survival probability shown by the ggsurvplot. Grade 2 has a higher chance of surviving as time increases compared to grade 3.
+
+The ggsurvplot illustrates that as time increases, the likelihood of survival decreases as tumor size grows. For instance, tumor size \<=20 has the highest survival rate as time increases compared to size =\>50 and size 20-50. Tumor size 20-50 has the second highest survival probability.
+
+Survival does seam to differ across tumor grade and tumor size. The higher the tumor grade, the faster it grows and spreads leading to a lower survival rate compared to a lower grade. With a larger tumor size, it is more difficult to treat leading it to spread throughout the body decreasing survival rate compared to a smaller tumor size.
+
+```{r}
+library(survminer)
+fit <- survfit((S) ~ rotterdam$grade) #using grade as a predictor
+ggsurvplot(fit, data = rotterdam, conf.int = TRUE)
+
+fit2 <- survfit((S) ~ rotterdam$size) #using size as a predictor
+ggsurvplot(fit2, data = rotterdam, conf.int = TRUE)
+```
+
+b\.
+
+5! = 5x4x3x2x1 = 120, so there are 120 different ways to order the 5 tied survival times.
+
+It requires computing the partial likelihood contribution for each of these 120 orders independently, posing a computational challenge for the cox partial likelihood averaging method.
+
+c\.
+
+The model using the Efron approximation is a better fit compared to the null model from the ANOVA- likelihood ratio test.
+
+Ho: beta1= beta2= beta3= beta4= beta5 =beta6 = 0
+
+Ha: all betas do not equal 0
+
+p-value: \<2.2x10\^-16 which is less than alpha 0.05, so we reject Ho.
+
+AIC for null model: 25622. 88
+
+AIC for Efron approximation: 25151.92 --- smaller AIC
+
+The Efron approximation has a lower AIC value indicating that it is a better fit compared to the null model. Efron approximation is good with being accurate and moderately easy to work with.
+
+```{r}
+#coxph(S~1) null model and compare it to the interaction model to see which one is a better fit.
+fit0 <- coxph(S ~ 1, data = rotterdam)
+summary(fit0) 
+
+fit1 <- coxph(S ~ grade + size + grade:size + nodes, data = rotterdam, method = "efron" )
+summary(fit1)
+
+anova(fit0, fit1)
+AIC(fit0)
+AIC(fit1)
+
+```
+
+d\.
+
+The log likelihood ratio test proves that the model with interaction is a better fit compared to a model with no interaction.
+
+Ho: Beta1 = Beta2 = 0
+
+Ha: All of the Betas do not equal 0
+
+p value = 0.0542 which is not less than alpha 0.05, so we fail to reject the null hypothesis.
+
+Chi Square distribution of the test statistic under the null hypothesis with 2df is used for Anova.
+
+AIC is also another way to prove which model has a better fit. The model with interaction has a smaller AIC value indicating that it is a better fit for the model.
+
+```{r}
+fit2 <- coxph(S ~ grade + size + grade:size + nodes, data = rotterdam) #with interaction term
+fit3 <- coxph(S ~ grade + size + nodes, data = rotterdam)
+anova(fit2, fit3)
+AIC(fit2)
+AIC(fit3)
+```
+
+e\.
+
+```{r}
+cox_model2 <- coxph(S ~ grade + size + grade:size + nodes, data = rotterdam)
+ndat <- data.frame(rfstime = 3000, grade = 2, nodes = 5, size = c("<=20","20-50",">50" ))
+sfit <- survfit(cox_model2, newdata = ndat, type="kalbfleisch-prentice")
+sfit
+
+```
+
+f\.
+
+```{r}
+
+plot(sfit, col=pal(3), mark.time=FALSE, lwd=3, bty='n', las=1,
+     xlab='Time (days)', ylab='Survival Probability', conf.int= TRUE)
+toplegend(legend= c(" <=20","20-50",">50"), col=pal(3), lwd=3)
+
+
+```
+
+g\.
+
+The 95% confidence interval for the median survival time for an individual with tumor grade = 3, nodes = 1, and size = "\>50" is between 1308 and 1904.
+
+```{r}
+newdat <- data.frame(grade = 3, nodes = 1, size = ">50")
+survfit(fit1,type="kalbfleisch-prentice", newdata = newdat)
+
+```
+
+h\.
+
+The Breslow and Efron approximation are roughly equivalent, since the model fit did not change much according to the tests' findings (LRT, Wald, and Score Log rank). The Breslow approximation is the least precise but the most practical according to the lecture notes.
+
+```{r}
+fit4 <- coxph(S ~ grade + size + grade:size + nodes, data = rotterdam, method = "breslow" )
+summary(fit4)
+
+#compared to C: 
+summary(fit1)
+
+```
+
+**i.**
+
+As per the findings in part c, the exp(coefficients) for the various variables are all greater than 1, which suggests an increased risk. On the other hand, the exp(coefficients) for the interaction terms are less than 1, indicating a decreased risk. Based on the results, it can be inferred that tumors with higher grade, larger size, and positive lymph node status are associated with lower survival rates. Conversely, smaller tumors are likely to have a higher chance of survival compared to larger tumors.
+
+Question 2
+
+![](images/Screen%20Shot%202023-04-16%20at%205.28.39%20PM-02.png)
+
+![](images/Screen%20Shot%202023-04-16%20at%205.28.46%20PM-01.png)
+
+![](images/Screen%20Shot%202023-04-16%20at%206.28.27%20PM-01.png)
+
+Question 3
+
+```{r}
+mod1 <- coxph(S ~ age + size + grade + nodes, data = rotterdam)
+mod1
+```
+
+a\.
+
+The estimate cumulative hazard function is not aligned or semi close to the cumulative hazard function of a standard exponential function indicating that there is a lack of fit here (going from residual = 1.5 onward).
+
+```{r}
+lim <- c(0, 4)
+e <- mod1$y[,2]-residuals(mod1)
+efit <- survfit(Surv(e, mod1$y[,2])~1)
+efit
+plot(efit, fun='cumhaz',bty='n', conf.int=TRUE,mark.time=FALSE, lwd=2, xlab='Residual', ylab='Cumulative hazard', xlim=lim, ylim=lim)
+#ciband(efit, fun=function(x)-log(x))
+
+lines(lim, lim, col='red', lwd=2)
+```
+
+b\.
+
+The plot implies that there may be a discrepancy in the fit of the data as indicated by the standardized residuals, which deviate from the range of [-2,2], particularly towards the end where they approach 0.3. While there are other instances where the curve falls outside of the [-2,2] range, it is especially noticeable towards the end.
+
+```{r}
+efit <- survfit(Surv(e, mod1$y[,2])~1)
+x <- log(efit$time)
+std.resid <- (-log(efit$surv) - efit$time)/efit$std.err
+plot(x, std.resid, type='l', col='red', lwd=2, bty='n', las=1,
+     xlab='x', ylab = 'standardized errors for cumulative hazard')
+
+#Standardized residuals outside of [−2, 2], roughly, may indicate poor model fit.
+abline(h=c(-2,2), col='blue') 
+```
+
+c\.
+
+The subject located in the 2278th row of the dataset exhibits deviance residuals lower than -3.4, indicating that it may be an outlier. This suggests that the observed data for this subject does not align well with the predicted values from the model, indicating a lack of fit.\
+We incorporated the variable nodes as a covariate in our analysis to control for potential confounding effects. The graph depicts that the nodes variable exhibits an increase in values, indicating its potential influence on the outcome variable.
+
+```{r}
+mod1 <- coxph(S ~ age + size + grade + nodes, data = rotterdam)
+r <- residuals(mod1, type='deviance')
+plot(rfstime, r, pch=19, bty='n', las=1, col=pal(2)[mod1$y[,2]+1],
+     xlab='Time', ylab='Deviance residual')
+toplegend(legend=c("Censored", "Observed Failure Time"), pch=19, col=pal(2))
+
+require(visreg)
+visreg(mod1, 'nodes', xlab='nodes', ylab="Linear predictor")
+
+```
+
+d\.
+
+Upon observation, it can be noted that there are a few data points scattered below a deviance residual of -3, which suggests the presence of outliers. Furthermore, the higher number of observed failure times compared to censored times indicates potential differences in the characteristics or behavior of the censored data points in comparison to the observed failure times. It does explain what I see in part c because there were also outliers in c that could have been influenced by the outliers in d.
+
+```{r}
+mod1 <- coxph(S ~ age + size + grade + nodes, data = rotterdam)
+r <- residuals(mod1, type='deviance')
+plot(rotterdam$nodes, r, bty='n', las=1, xlab='Nodes', ylab='Deviance residual', pch=19, bty='n', las=1, col=pal(2)[mod1$y[,2]+1])
+toplegend(legend=c("Censored", "Observed Failure Time"), pch=19, col=pal(2))
+
+```
+
+e\.
+
+Looking at the plot, the nonlinear effect of nodes is appropriate for the model.
+
+```{r}
+mod2 <- coxph(S ~ age + size + grade + pspline(nodes), data = rotterdam)
+
+r <- residuals(mod2, type='deviance')
+plot(rotterdam$nodes, r, bty='n', las=1, xlab='Nodes', ylab='Deviance residual', pch=19, bty='n', las=1, col=pal(2)[mod2$y[,2]+1])
+toplegend(legend=c("Censored", "Observed Failure Time"), pch=19, col=pal(2))
+
+```
+
+f\.
+
+Model 2 has a lower AIC and BIC value compared to model 1 which indicates that it is a better fit.
+
+```{r}
+AIC(mod1)
+AIC(mod2)
+
+BIC(mod1)
+BIC(mod2)
+```
+
+g\.
+
+The average concordance over the five fold cross validation for model 1 is 0.6646.
+
+The average concordance over the five fold cross validation for model 2 is 0.67014.
+
+According to this metric, model 2 is slightly better than model 1 due to a higher average concordance over the five fold.
+
+```{r}
+#model 1
+set.seed(5)
+t0 <- rep(c(1:5), length=dim(rotterdam)[1])
+fold.indices <- sample(t0)
+mod1 <- rep(0, 5)
+                
+for(k in 1:5){
+  
+  rotterdam$status <- pmax(rotterdam$recur, rotterdam$death)
+  rotterdam$rfstime <- with(rotterdam, ifelse(recur==1, rtime, dtime))
+  
+  rotterdam.mk <- rotterdam[-which(fold.indices==k),]
+  rotterdam.k <- rotterdam[which(fold.indices==k),]
+  
+  fit1.k <- coxph(Surv(rfstime, status) ~ age + size + grade + nodes, rotterdam.mk)
+  pred1.k <- predict(fit1.k, rotterdam.k)
+  
+  S.k <- Surv(rotterdam.k$rfstime, rotterdam.k$status)
+  
+  mod1[k] <- survConcordance(S.k ~ pred1.k)$concordance
+  
+}
+mean(mod1)
+```
+
+```{r}
+#model 2 
+
+set.seed(5)
+t0 <- rep(c(1:5), length=dim(rotterdam)[1])
+fold.indices <- sample(t0)
+mod2 <- rep(0, 5)
+                
+for(k in 1:5){
+  
+  rotterdam$status <- pmax(rotterdam$recur, rotterdam$death)
+  rotterdam$rfstime <- with(rotterdam, ifelse(recur==1, rtime, dtime))
+  
+  rotterdam.mk <- rotterdam[-which(fold.indices==k),]
+  rotterdam.k <- rotterdam[which(fold.indices==k),]
+  
+  fit2.k <- coxph(Surv(rfstime, status) ~  age + size + grade + pspline(nodes), rotterdam.mk)
+  pred2.k <- predict(fit2.k, rotterdam.k)
+  
+  S.k <- Surv(rotterdam.k$rfstime, rotterdam.k$status)
+  
+  mod2[k] <- survConcordance(S.k ~ pred2.k)$concordance
+  
+}
+mean(mod2)
+```

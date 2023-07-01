@@ -1,0 +1,249 @@
+---
+title: "Exam 1"
+author: "Hanna Wu"
+date: "2023-03-05"
+output: pdf_document
+---
+
+**Question 1**
+
+1a. This is right censored because the time to death is not fully observed for all individuals since the study has not reached its endpoint. This is also left truncated due to the fact that these are all newly diagnosed patients with colorectal cancer.
+
+1b. This is right censored because some participants do not experience the death from Hodgkin lymphoma by the end of the study period due to death from other causes, withdrawal from the study, or they are still alive at end of study. This is also left truncated due to the fact that these are all newly diagnosed patients with Hodgkin lymphoma.
+
+1c. This is right censored because it was not known at the end of the study whether or not all children would develop chicken pox by the time they finished elementary school. This is right truncated because some children are still at risk for getting chicken pox because they did not contact it in the study.
+
+1d. This is right censoring because the study is to estimate the distribution of time until cancer, however, not everyone is going to develop oral cancer at the end of the study. This is left truncated because all workers did not come into the study diagnosed with oral cancer.
+
+1e. This is right censoring because only the age of death is recorded at the end of the study, so the time the elders that did not die at the end of the study are unknown. This is left truncated because to be in a retirement home, everyone would need to meet a certain age to qualify.
+
+The likelihood for all parts (a-e) are below:
+
+![](images/Screen%20Shot%202023-03-09%20at%204.38.14%20PM-01.png)
+
+**Question 2**
+
+```{r}
+fileloc.p2 <- url("https://ajmolstad.github.io/docs/p2.RDS")
+p2.dat <- readRDS(fileloc.p2)
+library(survival)
+library(survminer)
+source("http://ajmolstad.github.io/docs/fun.R")
+```
+
+2a. The log-likelihood for these data is written below.
+
+![](images/Screen%20Shot%202023-03-06%20at%2012.30.26%20PM-01.png){width="545"}
+
+```{r}
+
+plotS <- function(x, l) {
+   if (is.matrix(l)) {
+     L <- apply(l, 2, function(x) x/max(x))
+     matplot(x, L, type='l', xlab=expression(t), ylab=expression(S(t)),
+             las=1, col=pal(ncol(L)), lwd=3, lty=1, bty='n')
+     if (!is.null(colnames(L))) toplegend(legend=colnames(L), lwd=3, col=pal(ncol(L)))
+   } else {
+     l <- l/max(l)
+	plot(x, l, type='l', xlab=expression(t), ylab=expression(S(t)) , las=1, col=pal(2)[2], lwd=3, bty='n')
+	}
+}
+
+#creates the function for the likelihood of exponential distrib. 
+ExpLik <- function(lambda){
+	lambda^11 * exp(-lambda*(1.65 + 1.49 + 0.69 + 0.71 + 0.58 + 1.12 + 1.16 + 1.75 + 1.8 + 1.08 + 0.96)) * exp(-lambda*(0.45 + 1.42 + 2.11 + 1.17 )) 
+}
+
+x <- seq(0, 1.5, length=100)
+plotL(x, ExpLik(x))
+
+
+```
+
+2b.
+
+![](images/Screen%20Shot%202023-03-06%20at%2012.30.33%20PM.png)
+
+The output of the MLE of the survival function is depicted below.
+
+```{r}
+
+ExpSurFunc <- function(t, lambda){
+	exp(- t*lambda)
+}
+x <- seq(0, 10, length=100)
+plotS(x, ExpSurFunc(x, 0.606))
+ExpSurFunc
+abline(v=3, lty=2) #draw vertical line at t = 3
+```
+
+2c. shat(t) = exp(-0.606(3)) = 0.16235
+
+The maximum likelihood estimate of the survival probability at three years (t =3) is approximately 0.16235. I have also added an abline to part b, and it shows that t = 3 is somewhere below 0.2.
+
+2d. We are 95% confident, using the CLT for log S(t), that the survival probability at one year (t =1) is between 0.513 and 0.995.
+
+```{r}
+time <- c(1.65, 1.49, 0.45, 0.69, 1.42, 0.71, 0.58, 1.12, 1.16, 2.11, 1.75, 1.8, 1.17, 0.96, 1.08 )
+status <- c(1,1,0,1,0,1,1,1,1,0,1,1,0,1,1)
+s1 <- survfit(Surv(time, status) ~ 1, conf.type="log")
+summary(s1, time=1)
+plot(s1, main="CI-log") 
+abline(v=1, col="blue")
+```
+
+2e. The code below construct a 95% confidence interval for the 25th percentile of survival.
+
+The point estimate for the 25th percentile of survival times is 0.96. The lower bound is 0.69 and the upper bound is 1.65 for the 95% CI of the 25th percentile of survival times.
+
+```{r}
+s2 <- survfit(Surv(time,status) ~ 1, data = p2.dat)
+quantile(s2,.25)
+```
+
+2f.
+
+![](images/Screen%20Shot%202023-03-06%20at%204.33.30%20PM.png)
+
+2g.
+
+```{r}
+time <- c(1.65, 1.49, 0.45, 0.69, 1.42, 0.71, 0.58, 1.12, 1.16, 2.11, 1.75, 1.8, 1.17, 0.96, 1.08 )
+status <- c(1,1,0,1,0,1,1,1,1,0,1,1,0,1,1)
+dat <- data.frame(time, status)
+fit <- survfit(Surv(time, status) ~ 1, data = dat)
+ggsurvplot(fit)
+
+
+```
+
+2h.
+
+The estimate of this quantity, at t=3, is undefined due to the fact that it is not observed and time only goes up to 2.11 right censored time. I tried typing code for this, however, I kept getting error so I believe that at t=3 it would be undefined.
+
+2i.
+
+The 95% confidence interval for S(1), time = 1, is between 0.478 and 0.951 when using the greenwood's formula CI. Since the survival times are right censored, using the Greenwood's formula is most appropriate.
+
+```{r}
+s3 <- survfit(Surv(p2.dat$time, p2.dat$status)~1,  conf.type="plain")
+summary(s3, time=1)
+plot(s3, main="CI-GW") #greenwood's formula CI
+abline(v=1, col="red")
+ 
+```
+
+2j.
+
+Based on the Kaplan-Meier estimate of the survival function, The point estimate for the 25th percentile of of survival is 0.96. The lower bound is 0.69 and the upperbound is 1.49 for the 95% CI of the 25th percentile of survival times.
+
+```{r}
+s4 <- survfit(Surv(p2.dat$time, p2.dat$status)~1,  conf.type="plain")
+quantile(s4,.25)
+```
+
+2k.
+
+The r intervals in (h/i) is different from the intervals computed in (c/d). Computed earlier in parts c and d are intervals found from the maximum likelihood estimate of the survival probability, while h and i are intervals from the Kaplan-Meier estimator of survival probability.
+
+2l.
+
+The assumption that these survival times follow an exponential distribution is indeed reasonable because depicted above, the curve starts at a high point on the left and then decreases exponentially as it moves to the right.
+
+**Question 3**
+
+3a.
+
+![](images/Screen%20Shot%202023-03-09%20at%202.41.52%20PM.png){width="650"}
+
+3b.
+
+![](images/Screen%20Shot%202023-03-09%20at%202.41.56%20PM.png){width="524"}
+
+![](images/Screen%20Shot%202023-03-09%20at%202.42.02%20PM.png){width="573"}
+
+3c.
+
+![](images/Screen%20Shot%202023-03-09%20at%202.42.06%20PM.png){width="569"}
+
+![](images/Screen%20Shot%202023-03-09%20at%202.42.11%20PM.png){width="547"}
+
+3d.
+
+![](images/Screen%20Shot%202023-03-09%20at%202.42.16%20PM.png){width="554"}
+
+3d ii.
+
+```{r}
+Survival1 <- function(t){
+	exp(-exp(0.2*5)*exp(-0.8)*2*(exp(t/2)-1))
+}
+Survival2 <- function(t){
+	exp(-exp(0.2*1)*exp(-0.8)*2*(exp(t/2)-1))
+}
+
+plot(Survival1, col = "red")
+plot(Survival2,col = "blue", add=TRUE)
+```
+
+3e.
+
+The proportional hazard models and MLE estimates indicate that the more severe a person's RA is, the more challenging it may be to properly treat. As shown in the graph above, as time increases, the survival probability will decrease at an exponential rate. So, RA severity does have a significant impact on the effectiveness of the treatment.
+
+**Question 4**
+
+```{r}
+fileloc.p3 <- url("https://ajmolstad.github.io/docs/p3.RDS")
+p3.dat <- readRDS(fileloc.p3)
+```
+
+4a.
+
+Looking at the plot, it is clear that treatment CP has a lower initial chance of survival than bcg since the survival probability of treatment cp drops faster compared to bcg at the beginning of time. Later on, it appears that the probability of survival becomes more constant as time increases. Eyeballing makes it hard to determine whether there appears to be a difference between treatments, however, the intervals show that there may not be much of a significant difference since both groups are relatively close in numbers.
+
+```{r}
+fit.d <- survfit(Surv(time, status) ~ treatment, data= p3.dat)
+summary(fit.d)
+ggsurvplot(fit.d, conf.int=TRUE)
+
+```
+
+4b.
+
+![](images/Screen%20Shot%202023-03-09%20at%205.53.32%20PM.png)
+
+The two graphs that I sketched, one for each treatment given, shows how the hazard rate changes over time given the treatment BCG or CP. The derivative of the Kaplan Meier curve at each t is essentially what converts a Kaplan Meier graph to a hazard function. Since the BCG graph on the Kaplan Meier curve declines first, the hazard rate also drops first as time increases.
+
+4c.
+
+Ho: There is no significant difference in survival between the two treatment groups
+
+Ha: There is significant difference in survival between the two treatment groups
+
+The null hypothesis follow a Chi square distribution with 1 degree of freedom.
+
+We fail to reject the null hypothesis with a p-value of 0.8 at alpha = 0.05, so there is no significant difference in survival between the two treatment groups.
+
+```{r}
+survdiff(Surv(time, status)~treatment, data = p3.dat)
+```
+
+4d.
+
+![](images/Screen%20Shot%202023-03-09%20at%206.46.16%20PM.png)
+
+![](images/Screen%20Shot%202023-03-09%20at%206.46.22%20PM.png)
+
+![](images/Screen%20Shot%202023-03-09%20at%206.46.27%20PM.png)
+
+After computing the Wilcoxon log-rank test by hand, I have come to the conclusion of getting a test statistic of 3.8585. This aligns with part c, where there is no significant difference in survival between the two treatment groups.
+
+4e.
+
+The Log rank test compares the observed number of events to the predicted number of events under the null hypothesis, assuming that the hazard ratio is constant over time. Censored data are also incorporated into the analysis by given a weight based on how much of the observation time was used during the research. On the other hand, the Wilcoxon test ranks the event timings and then determines the total of the ranks for each group. The two sums from each group are then used to compare the results to the test statistic. The Peto-Prentice test is simply a modified version of the unweighted log rank test where it is adding weights based on the quantity of occurrences.
+
+A situation in which the three tests could give different results is possibly giving the covid 19 shots, where one group receives the new treatment and the other group is receiving the old treatment. We can predict that there may be a greater difference between the survival curves if the new treatment has a quicker impact on the illness than the old treatment.
+
+4f.
+
+The test shown compares the survival distributions of two groups before estimating the likelihood of failure in each group. The Wilcoxon test, on the other hand, analyzes the median values of the two groups to identify any differences. This test is favored over the Wilcoxon test when the treatment effects are changing overtime.
